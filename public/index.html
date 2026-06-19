@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>home-stream</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>home-stream</h1>
+  </header>
+
+  <main>
+    <div id="library-section">
+      <div id="library-nav" class="library-nav">
+        <button id="library-back" class="back-btn" hidden>← Back</button>
+        <span id="breadcrumb" class="breadcrumb"></span>
+      </div>
+      <div id="library-view">
+        <p class="loading">Loading…</p>
+      </div>
+    </div>
+
+    <div id="player-view" hidden>
+      <div class="player-header">
+        <button id="back-btn" class="back-btn">← Library</button>
+        <span id="player-title" class="player-title"></span>
+      </div>
+      <div class="player-container">
+        <video id="player" controls></video>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
