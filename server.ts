@@ -8,9 +8,13 @@ import os from "os";
 
 try {
   const raw = fs.readFileSync(path.join(__dirname, ".env"), "utf8");
-  for (const line of raw.split("\n")) {
-    const m = line.match(/^([^#=][^=]*)=(.*)$/);
-    if (m) process.env[m[1].trim()] ??= m[2].trim();
+  for (const line of raw.split(/\r?\n/)) {
+    const stripped = line.replace(/^﻿/, "");
+    if (stripped.startsWith("#") || !stripped.includes("=")) continue;
+    const eq = stripped.indexOf("=");
+    const key = stripped.slice(0, eq).trim();
+    const val = stripped.slice(eq + 1).trim();
+    if (key) process.env[key] ??= val;
   }
 } catch {
   // no .env file
@@ -67,9 +71,11 @@ interface TMDBResult {
 const VIDEO_EXTS = new Set([".mp4", ".webm"]);
 const SUBTITLE_EXTS = new Set([".vtt"]);
 
+function toUnix(p: string): string { return p.replace(/\\/g, "/"); }
+
 function buildLibraryTree(dir: string): DirEntry {
   const name = path.basename(dir);
-  const relPath = path.relative(LIBRARY_ROOT, dir);
+  const relPath = toUnix(path.relative(LIBRARY_ROOT, dir));
   const children: Entry[] = [];
 
   let entries: fs.Dirent[];
@@ -95,7 +101,7 @@ function buildLibraryTree(dir: string): DirEntry {
         children.push({
           type: "file",
           name: entry.name,
-          path: path.relative(LIBRARY_ROOT, fullPath),
+          path: toUnix(path.relative(LIBRARY_ROOT, fullPath)),
           size: stat.size,
         });
       }
@@ -117,7 +123,7 @@ function getSubtitlesForVideo(videoRelPath: string): string[] {
       if (!SUBTITLE_EXTS.has(ext)) continue;
       const entryStem = path.basename(entry, ext);
       if (entryStem === stem || entryStem.startsWith(stem + ".")) {
-        results.push(path.relative(LIBRARY_ROOT, path.join(dir, entry)));
+        results.push(toUnix(path.relative(LIBRARY_ROOT, path.join(dir, entry))));
       }
     }
   } catch {
