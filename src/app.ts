@@ -26,6 +26,8 @@ const LANG: Record<string, string> = {
 
 let libraryData: DirEntry | null = null;
 let navStack: DirEntry[] = [];
+let sortBy: "name" | "year" = "name";
+let sortDir: "asc" | "desc" = "asc";
 
 function currentDir(): DirEntry | null {
   if (!libraryData) return null;
@@ -67,6 +69,24 @@ function el<K extends keyof HTMLElementTagNameMap>(
   for (const [k, v] of Object.entries(props)) e.setAttribute(k, v);
   for (const c of children) e.append(c);
   return e;
+}
+
+function extractYearFromName(name: string): number | null {
+  const m = name.match(/\((\d{4})\)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function sortEntries(entries: Entry[]): Entry[] {
+  return [...entries].sort((a, b) => {
+    if (sortBy === "year") {
+      const ya = extractYearFromName(a.name) ?? Infinity;
+      const yb = extractYearFromName(b.name) ?? Infinity;
+      if (ya !== yb) return sortDir === "asc" ? ya - yb : yb - ya;
+      return displayName(a.name).localeCompare(displayName(b.name));
+    }
+    const cmp = displayName(a.name).localeCompare(displayName(b.name));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -118,9 +138,27 @@ function renderLibrary(): void {
 }
 
 function renderPosterGrid(dir: DirEntry, container: HTMLElement): void {
-  const grid = el("div", { class: "poster-grid" });
+  const controls = el("div", { class: "sort-controls" });
+  const buttons: Array<["name" | "year", "asc" | "desc", string]> = [
+    ["name", "asc", "Name ▲"],
+    ["name", "desc", "Name ▼"],
+    ["year", "asc", "Year ▲"],
+    ["year", "desc", "Year ▼"],
+  ];
+  for (const [by, order, label] of buttons) {
+    const btn = el("button", {
+      class: "sort-btn" + (sortBy === by && sortDir === order ? " sort-active" : ""),
+    });
+    btn.textContent = label;
+    btn.addEventListener("click", () => { sortBy = by; sortDir = order; renderLibrary(); });
+    controls.appendChild(btn);
+  }
+  container.appendChild(controls);
 
-  for (const child of dir.children) {
+  const grid = el("div", { class: "poster-grid" });
+  const sorted = sortEntries(dir.children);
+
+  for (const child of sorted) {
     const card = el("div", { class: "poster-card" });
     card.dataset["artworkPath"] = child.type === "dir" ? child.path : "";
 
@@ -147,7 +185,7 @@ function renderPosterGrid(dir: DirEntry, container: HTMLElement): void {
   container.appendChild(grid);
 
   // Fetch artwork for each dir card asynchronously
-  for (const child of dir.children) {
+  for (const child of sorted) {
     if (child.type !== "dir") continue;
     const artworkPath = child.path;
     const card = grid.querySelector(

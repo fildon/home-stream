@@ -152,6 +152,35 @@ main {
   text-overflow: ellipsis;
 }
 
+/* ── Sort controls ──────────────────────────────────────────────────────── */
+
+.sort-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.sort-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.sort-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.sort-btn.sort-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ── Item list (root categories + episode lists) ────────────────────────── */
 
 .item-list {
