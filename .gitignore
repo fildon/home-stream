@@ -3,3 +3,4 @@ public/app.js
 dist/
 .env
 .cache/
+watched.json

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>home-stream</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <header>
@@ -16,6 +16,12 @@
       <div id="library-nav" class="library-nav">
         <button id="library-back" class="back-btn" hidden>← Back</button>
         <span id="breadcrumb" class="breadcrumb"></span>
+        <select id="sort-select" class="sort-select" hidden>
+          <option value="watched">Sort: Watch status</option>
+          <option value="name">Sort: Name</option>
+          <option value="year">Sort: Year</option>
+          <option value="length">Sort: Length</option>
+        </select>
       </div>
       <div id="library-view">
         <p class="loading">Loading…</p>
@@ -26,6 +32,10 @@
       <div class="player-header">
         <button id="back-btn" class="back-btn">← Library</button>
         <span id="player-title" class="player-title"></span>
+        <button id="watched-toggle-btn" class="watched-btn"></button>
+      </div>
+      <div id="mkv-warning" class="mkv-warning" hidden>
+        MKV playback requires a Chromium-based browser (Chrome, Edge, Brave). This file may not play in your current browser.
       </div>
       <div class="player-container">
         <video id="player" controls></video>
@@ -33,6 +43,6 @@
     </div>
   </main>
 
-  <script src="app.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

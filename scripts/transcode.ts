@@ -2,6 +2,22 @@ import { execFileSync, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
+// ── Env ──────────────────────────────────────────────────────────────────────
+
+try {
+  const raw = fs.readFileSync(path.join(__dirname, "..", ".env"), "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const stripped = line.replace(/^﻿/, "");
+    if (stripped.startsWith("#") || !stripped.includes("=")) continue;
+    const eq = stripped.indexOf("=");
+    const key = stripped.slice(0, eq).trim();
+    const val = stripped.slice(eq + 1).trim();
+    if (key) process.env[key] ??= val;
+  }
+} catch {
+  // no .env file
+}
+
 // ── Config ───────────────────────────────────────────────────────────────────
 
 const VIDEO_EXTS = new Set([
@@ -15,6 +31,7 @@ interface Stream {
   codec_type: string;
   codec_name: string;
   index: number;
+  channels?: number;
   tags?: { language?: string };
 }
 
@@ -43,10 +60,10 @@ function decideAction(result: ProbeResult, filePath: string): Action {
   if (!video) return "skip";
 
   const h264 = video.codec_name === "h264";
-  const aac = !audio || audio.codec_name === "aac";
+  const aac = !audio || (audio.codec_name === "aac" && (audio.channels ?? 0) <= 2);
   const mp4 = ext === ".mp4";
 
-  if (h264 && aac && mp4) return "skip";
+  if (h264 && aac && (mp4 || ext === ".mkv")) return "skip";
   if (h264 && aac) return "remux";
   if (h264 && !aac) return "transcode-audio";
   return "transcode-video";
@@ -115,12 +132,12 @@ function ffmpegArgs(input: string, output: string, action: Action): string[] {
     case "remux":
       return [...base, "-c", "copy", "-movflags", "+faststart", output];
     case "transcode-audio":
-      return [...base, "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart", output];
+      return [...base, "-c:v", "copy", "-c:a", "aac", "-ac", "2", "-movflags", "+faststart", output];
     case "transcode-video":
       return [
         ...base,
         "-c:v", "libx264", "-crf", "20", "-preset", "medium",
-        "-c:a", "aac",
+        "-c:a", "aac", "-ac", "2",
         "-movflags", "+faststart",
         output,
       ];
@@ -174,10 +191,15 @@ function collectFiles(dir: string): string[] {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main(): void {
-  const libraryPath = process.argv[2];
+  const libraryPath = process.argv[2] ?? process.env.LIBRARY_PATH;
 
   if (!libraryPath) {
-    console.error("Usage: npm run transcode -- /path/to/library");
+    console.error(
+      "\nError: LIBRARY_PATH is not set.\n" +
+        "  Set it in a .env file:  LIBRARY_PATH=/path/to/your/media\n" +
+        "  Or inline:              LIBRARY_PATH=/path/to/media npm run transcode\n" +
+        "  Or as an argument:      npm run transcode -- /path/to/library\n",
+    );
     process.exit(1);
   }
 

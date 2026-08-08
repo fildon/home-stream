@@ -70,6 +70,21 @@ main {
   color: var(--muted);
 }
 
+.sort-select {
+  margin-left: auto;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.sort-select:hover {
+  border-color: var(--accent);
+}
+
 /* ── Library view ───────────────────────────────────────────────────────── */
 
 #library-view {
@@ -142,6 +157,40 @@ main {
   color: var(--border);
 }
 
+.poster-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  opacity: 0.6;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.poster-badge:hover {
+  opacity: 1;
+}
+
+.poster-card.watched .poster-badge {
+  opacity: 1;
+  color: #4aff88;
+  border-color: #4aff88;
+}
+
+.poster-card.in-progress .poster-badge {
+  opacity: 1;
+  color: #ffcc44;
+  border-color: #ffcc44;
+}
+
 .poster-label {
   padding: 0.5rem 0.6rem 0.6rem;
   font-size: 0.78rem;
@@ -150,35 +199,6 @@ main {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* ── Sort controls ──────────────────────────────────────────────────────── */
-
-.sort-controls {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.sort-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 0.3rem 0.7rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: border-color 0.12s, color 0.12s;
-}
-
-.sort-btn:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.sort-btn.sort-active {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 /* ── Item list (root categories + episode lists) ────────────────────────── */
@@ -231,6 +251,39 @@ main {
   flex-shrink: 0;
 }
 
+.watched-toggle {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.watched-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.item-row.watched .watched-toggle {
+  color: #4aff88;
+  border-color: #4aff88;
+}
+
+.item-row.watched .item-name {
+  color: var(--muted);
+}
+
+.item-row.in-progress .watched-toggle {
+  color: #ffcc44;
+  border-color: #ffcc44;
+}
+
 /* ── Player view ────────────────────────────────────────────────────────── */
 
 #player-view {
@@ -271,11 +324,45 @@ main {
 }
 
 .player-title {
+  flex: 1;
   font-size: 0.95rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
+}
+
+.watched-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.watched-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.watched-btn.watched {
+  border-color: #4aff88;
+  color: #4aff88;
+}
+
+.mkv-warning {
+  padding: 0.55rem 1.25rem;
+  background: #2a2000;
+  border-bottom: 1px solid #5a4500;
+  color: #ffcc44;
+  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
 .player-container {

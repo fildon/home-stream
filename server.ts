@@ -42,6 +42,8 @@ const LIBRARY_ROOT = path.resolve(LIBRARY_PATH);
 const CACHE_DIR = path.join(__dirname, ".cache");
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
+const WATCHED_PATH = path.join(__dirname, "watched.json");
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type FileEntry = { type: "file"; name: string; path: string; size: number };
@@ -68,7 +70,7 @@ interface TMDBResult {
 
 // ── Library helpers ───────────────────────────────────────────────────────────
 
-const VIDEO_EXTS = new Set([".mp4", ".webm"]);
+const VIDEO_EXTS = new Set([".mp4", ".webm", ".mkv"]);
 const SUBTITLE_EXTS = new Set([".vtt"]);
 
 function toUnix(p: string): string { return p.replace(/\\/g, "/"); }
@@ -138,6 +140,20 @@ function safe(relPath: string): string | null {
   return abs.startsWith(LIBRARY_ROOT + path.sep) || abs === LIBRARY_ROOT
     ? abs
     : null;
+}
+
+// ── Watched tracking ──────────────────────────────────────────────────────────
+
+function loadWatched(): Record<string, boolean> {
+  try {
+    return JSON.parse(fs.readFileSync(WATCHED_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveWatched(data: Record<string, boolean>): void {
+  fs.writeFileSync(WATCHED_PATH, JSON.stringify(data));
 }
 
 // ── TMDB / artwork helpers ────────────────────────────────────────────────────
@@ -297,6 +313,7 @@ function printBanner(port: number): void {
 
 const app = express();
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/artwork", express.static(CACHE_DIR));
 
@@ -321,6 +338,27 @@ app.get("/api/subtitles", (req, res) => {
   res.json(getSubtitlesForVideo(videoPath));
 });
 
+app.get("/api/watched", (_req, res) => {
+  res.json(loadWatched());
+});
+
+app.post("/api/watched", (req, res) => {
+  const { path: relPath, watched } = req.body ?? {};
+  if (typeof relPath !== "string" || typeof watched !== "boolean") {
+    res.status(400).json({ error: "path (string) and watched (boolean) required" });
+    return;
+  }
+  if (!safe(relPath)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const data = loadWatched();
+  if (watched) data[relPath] = true;
+  else delete data[relPath];
+  saveWatched(data);
+  res.json({ ok: true });
+});
+
 app.get("/api/artwork", async (req, res) => {
   const relPath = req.query["path"] as string | undefined;
   if (!relPath) {
@@ -338,6 +376,12 @@ app.get("/api/artwork", async (req, res) => {
     console.error("artwork error:", err);
     res.json(null);
   }
+});
+
+// Client-side routes — always serve the SPA shell so deep links and page
+// refreshes on /browse/* or /watch/* work, not just in-app navigation.
+app.get(/^\/(browse|watch)(\/.*)?$/, (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.use(
