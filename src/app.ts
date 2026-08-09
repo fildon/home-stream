@@ -533,5 +533,39 @@ document.addEventListener("DOMContentLoaded", () => {
     updateWatchedButton(currentPlayingPath);
   });
 
+  document.addEventListener("keydown", (e) => {
+    const playerView = document.getElementById("player-view")!;
+    if (playerView.hidden) return;
+
+    // Let typing/interactive elements (and the app's own buttons) keep
+    // their normal keyboard behavior instead of hijacking the key.
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(active.tagName)
+    ) {
+      return;
+    }
+
+    const player = document.getElementById("player") as HTMLVideoElement;
+
+    switch (e.key) {
+      case " ":
+      case "Spacebar":
+        e.preventDefault();
+        if (player.paused) player.play().catch(() => {});
+        else player.pause();
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        player.currentTime = Math.max(0, player.currentTime - 5);
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 5);
+        break;
+    }
+  });
+
   loadLibrary();
 });

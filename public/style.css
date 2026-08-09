@@ -381,6 +381,14 @@ main {
   display: block;
 }
 
+/* Suppress the focus ring that Chrome draws around the whole <video>
+   element when a native control (play/pause, fullscreen, etc.) is
+   clicked — especially distracting in fullscreen. */
+#player:focus,
+#player:focus-visible {
+  outline: none;
+}
+
 /* ── Misc ───────────────────────────────────────────────────────────────── */
 
 .loading {
