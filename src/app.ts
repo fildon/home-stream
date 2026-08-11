@@ -537,17 +537,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const playerView = document.getElementById("player-view")!;
     if (playerView.hidden) return;
 
+    const player = document.getElementById("player") as HTMLVideoElement;
+
     // Let typing/interactive elements (and the app's own buttons) keep
-    // their normal keyboard behavior instead of hijacking the key.
+    // their normal keyboard behavior instead of hijacking the key. The
+    // video element itself is also exempt: its native controls already
+    // handle Space/Left/Right when it has focus, so re-applying the same
+    // action here would just fight the native handler.
     const active = document.activeElement;
     if (
-      active instanceof HTMLElement &&
-      ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(active.tagName)
+      active === player ||
+      (active instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(active.tagName))
     ) {
       return;
     }
-
-    const player = document.getElementById("player") as HTMLVideoElement;
 
     switch (e.key) {
       case " ":
