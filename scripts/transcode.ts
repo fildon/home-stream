@@ -71,7 +71,7 @@ function decideAction(result: ProbeResult, filePath: string): Action {
 
 // ── Subtitle helpers ─────────────────────────────────────────────────────────
 
-function extractEmbeddedSubtitles(filePath: string, result: ProbeResult): void {
+function extractEmbeddedSubtitles(filePath: string, result: ProbeResult, dryRun: boolean): void {
   const dir = path.dirname(filePath);
   const stem = path.basename(filePath, path.extname(filePath));
   const subs = result.streams.filter((s) => s.codec_type === "subtitle");
@@ -84,6 +84,11 @@ function extractEmbeddedSubtitles(filePath: string, result: ProbeResult): void {
 
     if (fs.existsSync(outPath)) {
       console.log(`    subtitle: ${path.basename(outPath)} already exists, skipping`);
+      continue;
+    }
+
+    if (dryRun) {
+      console.log(`    subtitle: would extract stream ${i} (${subs[i].codec_name}) → ${path.basename(outPath)}`);
       continue;
     }
 
@@ -101,13 +106,18 @@ function extractEmbeddedSubtitles(filePath: string, result: ProbeResult): void {
   }
 }
 
-function convertExternalSubtitle(filePath: string): void {
+function convertExternalSubtitle(filePath: string, dryRun: boolean): void {
   const dir = path.dirname(filePath);
   const stem = path.basename(filePath, path.extname(filePath));
   const outPath = path.join(dir, `${stem}.vtt`);
 
   if (fs.existsSync(outPath)) {
     console.log(`  ${path.basename(filePath)} → already converted, skipping`);
+    return;
+  }
+
+  if (dryRun) {
+    console.log(`  ${path.basename(filePath)} → would convert`);
     return;
   }
 
@@ -146,14 +156,16 @@ function ffmpegArgs(input: string, output: string, action: Action): string[] {
   }
 }
 
-function transcodeFile(filePath: string, action: Action, result: ProbeResult): boolean {
+function transcodeFile(filePath: string, action: Action, result: ProbeResult, dryRun: boolean): boolean {
   const dir = path.dirname(filePath);
   const stem = path.basename(filePath, path.extname(filePath));
   const outPath = path.join(dir, `${stem}.mp4`);
   const tmpPath = path.join(dir, `.${stem}.tmp.mp4`);
 
   // Extract subtitles while the original is still available
-  extractEmbeddedSubtitles(filePath, result);
+  extractEmbeddedSubtitles(filePath, result, dryRun);
+
+  if (dryRun) return true;
 
   const args = ffmpegArgs(filePath, tmpPath, action);
   console.log(`    running ffmpeg (${action})...`);
@@ -191,16 +203,23 @@ function collectFiles(dir: string): string[] {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main(): void {
-  const libraryPath = process.argv[2] ?? process.env.LIBRARY_PATH;
+  const args = process.argv.slice(2);
+  const dryRun = args.includes("--dry-run");
+  const libraryPath = args.find((a) => !a.startsWith("--")) ?? process.env.LIBRARY_PATH;
 
   if (!libraryPath) {
     console.error(
       "\nError: LIBRARY_PATH is not set.\n" +
         "  Set it in a .env file:  LIBRARY_PATH=/path/to/your/media\n" +
         "  Or inline:              LIBRARY_PATH=/path/to/media npm run transcode\n" +
-        "  Or as an argument:      npm run transcode -- /path/to/library\n",
+        "  Or as an argument:      npm run transcode -- /path/to/library\n" +
+        "  Add --dry-run to preview actions without changing any files.\n",
     );
     process.exit(1);
+  }
+
+  if (dryRun) {
+    console.log("\n[dry run] No files will be changed.");
   }
 
   if (!fs.existsSync(libraryPath)) {
@@ -257,18 +276,18 @@ function main(): void {
     if (action === "skip") {
       console.log(`${counter} ${rel} → skip`);
       // Still check for unextracted embedded subs on already-compatible files
-      extractEmbeddedSubtitles(filePath, result);
+      extractEmbeddedSubtitles(filePath, result, dryRun);
       skipped++;
       continue;
     }
 
-    console.log(`${counter} ${rel} → ${action}`);
+    console.log(`${counter} ${rel} → ${action}${dryRun ? " (dry-run)" : ""}`);
     const start = Date.now();
-    const ok = transcodeFile(filePath, action, result);
+    const ok = transcodeFile(filePath, action, result, dryRun);
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
     if (ok) {
-      console.log(`    done (${elapsed}s)\n`);
+      if (!dryRun) console.log(`    done (${elapsed}s)\n`);
       converted++;
     } else {
       failed++;
@@ -280,14 +299,16 @@ function main(): void {
   if (subtitleFiles.length > 0) {
     console.log("\nConverting external subtitle files...\n");
     for (const filePath of subtitleFiles) {
-      convertExternalSubtitle(filePath);
+      convertExternalSubtitle(filePath, dryRun);
     }
   }
 
   // ── Summary ───────────────────────────────────────────────────────────────
 
   console.log(
-    `\nDone. ${skipped} skipped, ${converted} converted, ${failed} failed.\n`,
+    dryRun
+      ? `\nDry run done. ${skipped} would be skipped, ${converted} would be converted, ${failed} failed to probe.\n`
+      : `\nDone. ${skipped} skipped, ${converted} converted, ${failed} failed.\n`,
   );
 }
 

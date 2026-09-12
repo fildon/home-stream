@@ -56,12 +56,41 @@ media/
 
 Top-level folder names containing `movie`/`film` are treated as movies for TMDB lookups; names containing `tv`/`show`/`series`/`anime` are treated as TV shows.
 
+## Adding new content
+
+This library's existing shows and movies follow a stricter convention than the server strictly requires — keep new additions consistent with it:
+
+```
+TV/
+  Show Name (Year)/
+    Season 01/
+      Show Name S01E01 Episode Title.ext
+Movies/
+  Movie Name (Year)/
+    Movie Name (Year).ext
+```
+
+- **Folder name**: `Show Name (Year)` / `Movie Name (Year)`, year is the original release year.
+- **Season folder**: `Season 01`, zero-padded, one per season.
+- **Episode filename**: `Show Name S01E01 Episode Title.ext` — always include the episode title, matching the rest of the library.
+- **Filename characters**: avoid characters that aren't valid in Windows filenames (`\ / : * ? " < > |`) — drop them from titles that contain them (e.g. `What's for Dinner?` → `What's for Dinner`).
+- **Codec**: video must be H.264; audio must be AAC (stereo or mono). Many downloaded/ripped files use AC3, DTS, or 5.1 audio, which browsers can't play back in `<video>` — check before adding to the library:
+
+  ```bash
+  ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,channels -of csv=p=0 "path/to/file.mp4"
+  ```
+
+  If it isn't `aac` with ≤2 channels, run the transcode script (see below).
+
+**Before running the transcode script on new content, preview it with `--dry-run` first** — it prints what each file would become without touching anything, so you can sanity-check its plan before committing to a real (slow, in-place) run.
+
 ## Transcode script
 
 Converts your library to browser-compatible H.264/AAC MP4 in-place, and extracts or converts embedded/external subtitles to WebVTT.
 
 ```bash
-npm run transcode -- /path/to/library
+npm run transcode -- /path/to/library --dry-run   # preview only, changes nothing
+npm run transcode -- /path/to/library              # actually convert
 ```
 
 Requires `ffmpeg` and `ffprobe` (`brew install ffmpeg` on macOS). Files that are already H.264 + AAC in an MP4 container are skipped; others are remuxed or re-encoded as needed.
