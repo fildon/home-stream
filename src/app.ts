@@ -520,6 +520,27 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const player = document.getElementById("player") as HTMLVideoElement;
+
+  // Native controls auto-hide during playback, but not while one of them
+  // has keyboard focus (e.g. after pressing Tab), which pins them on
+  // screen. After a short idle period, release focus from the video so
+  // they can hide; the document-level keydown handler below takes over
+  // the shortcuts once the video isn't focused.
+  const CONTROLS_IDLE_MS = 2000;
+  let idleTimer: number | undefined;
+  const resetIdleTimer = () => {
+    clearTimeout(idleTimer);
+    if (player.paused) return;
+    idleTimer = window.setTimeout(() => {
+      if (!player.paused && document.activeElement === player) player.blur();
+    }, CONTROLS_IDLE_MS);
+  };
+  player.addEventListener("play", resetIdleTimer);
+  player.addEventListener("pause", () => clearTimeout(idleTimer));
+  for (const type of ["mousemove", "pointerdown", "keydown"]) {
+    document.addEventListener(type, resetIdleTimer);
+  }
+
   player.addEventListener("ended", () => {
     if (!currentPlayingPath) return;
     setWatched(currentPlayingPath, true);
