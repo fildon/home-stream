@@ -73,6 +73,7 @@ Movies/
 - **Folder name**: `Show Name (Year)` / `Movie Name (Year)`, year is the original release year.
 - **Season folder**: `Season 01`, zero-padded, one per season.
 - **Episode filename**: `Show Name S01E01 Episode Title.ext` — always include the episode title, matching the rest of the library.
+- **Subtitles**: WebVTT files next to the video (not in a `Subs/` subfolder — those aren't found), named `<video name>.<language>[.sdh|.forced][.N].vtt`, e.g. `Show Name S01E01 Title.eng.vtt`, `….eng.sdh.vtt`. The language is an ISO code (`en`/`eng`, or a regional tag like `es-419`); the player shows these as "English", "English (SDH)", "Latin American Spanish", etc. The transcode script extracts embedded subtitles with these names automatically, telling plain, SDH and forced tracks apart.
 - **Filename characters**: avoid characters that aren't valid in Windows filenames (`\ / : * ? " < > |`) — drop them from titles that contain them (e.g. `What's for Dinner?` → `What's for Dinner`).
 - **Codec**: video must be H.264; audio must be AAC (stereo or mono). Many downloaded/ripped files use AC3, DTS, or 5.1 audio, which browsers can't play back in `<video>` — check before adding to the library:
 

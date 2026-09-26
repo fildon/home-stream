@@ -16,13 +16,22 @@ type ArtworkResult = {
 
 // ── Language labels ───────────────────────────────────────────────────────────
 
-const LANG: Record<string, string> = {
-  en: "English", fr: "French", de: "German", es: "Spanish",
-  it: "Italian", pt: "Portuguese", nl: "Dutch", ja: "Japanese",
-  ko: "Korean", zh: "Chinese", ru: "Russian", ar: "Arabic",
-  sv: "Swedish", no: "Norwegian", da: "Danish", fi: "Finnish",
-  pl: "Polish", cs: "Czech", hu: "Hungarian", tr: "Turkish",
-};
+// Handles 2- and 3-letter codes ("en", "eng", "fre") and regional tags
+// ("en-GB" → "British English", "zh-Hans" → "Simplified Chinese").
+const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
+
+function languageName(code: string): string {
+  if (code === "und") return "Unknown";
+  try {
+    return languageNames.of(code) ?? code;
+  } catch {
+    return code; // not a valid language tag
+  }
+}
+
+// Subtitle file suffix qualifiers (see extractEmbeddedSubtitles in
+// scripts/transcode.ts); "hi" (hearing impaired) is another common name for SDH.
+const SUBTITLE_KINDS: Record<string, string> = { sdh: "SDH", hi: "SDH", forced: "Forced" };
 
 // ── Browser detection ─────────────────────────────────────────────────────────
 
@@ -154,7 +163,19 @@ function subtitleLabel(videoPath: string, subPath: string, index: number): strin
   const suffix = subStem.startsWith(videoStem + ".")
     ? subStem.slice(videoStem.length + 1)
     : subStem;
-  return LANG[suffix] ?? (suffix && suffix !== videoStem ? suffix : `Subtitles ${index + 1}`);
+  if (!suffix || suffix === videoStem) return `Subtitles ${index + 1}`;
+
+  // "<lang>[.sdh|.forced][.N]" → e.g. "English", "English (SDH)", "English (2)"
+  const [lang, ...rest] = suffix.split(".");
+  const extras: string[] = [];
+  for (const part of rest) {
+    const kind = SUBTITLE_KINDS[part.toLowerCase()];
+    if (kind) extras.push(kind);
+    else if (/^\d+$/.test(part)) extras.push(part);
+    else return suffix; // not this naming scheme; show the name as-is
+  }
+  const name = languageName(lang);
+  return extras.length ? `${name} (${extras.join(", ")})` : name;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -465,13 +486,16 @@ async function openPlayer(file: FileEntry, push = true): Promise<void> {
     const res = await fetch(`/api/subtitles?path=${encodeURIComponent(file.path)}`);
     if (res.ok) {
       const subs = (await res.json()) as string[];
-      for (let i = 0; i < subs.length; i++) {
-        const encodedSrc = subs[i].split("/").map(encodeURIComponent).join("/");
+      const tracks = subs
+        .map((sub, i) => ({ sub, label: subtitleLabel(file.path, sub, i) }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      for (const { sub, label } of tracks) {
+        const encodedSrc = sub.split("/").map(encodeURIComponent).join("/");
         player.appendChild(
           el("track", {
             kind: "subtitles",
             src: `/files/${encodedSrc}`,
-            label: subtitleLabel(file.path, subs[i], i),
+            label,
           }),
         );
       }

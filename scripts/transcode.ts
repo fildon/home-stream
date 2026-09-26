@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "child_process";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 // ── Env ──────────────────────────────────────────────────────────────────────
@@ -32,7 +33,8 @@ interface Stream {
   codec_name: string;
   index: number;
   channels?: number;
-  tags?: { language?: string };
+  tags?: { language?: string; title?: string };
+  disposition?: { forced?: number; hearing_impaired?: number };
 }
 
 interface ProbeResult {
@@ -71,39 +73,205 @@ function decideAction(result: ProbeResult, filePath: string): Action {
 
 // ── Subtitle helpers ─────────────────────────────────────────────────────────
 
+// Image-based (Blu-ray/DVD) subtitle formats can't be converted to WebVTT
+// text without OCR.
+const IMAGE_SUBTITLE_CODECS = new Set(["hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "xsub"]);
+
+type SubtitleKind = "plain" | "sdh" | "forced";
+
+interface SubtitleTrack {
+  streamIndex: number; // position among the file's subtitle streams (0:s:N)
+  codec: string;
+  lang: string;
+  stream: Stream;
+  vtt?: string;
+  kind?: SubtitleKind;
+}
+
+// Extracted subtitles are named <stem>.<lang>[.sdh|.forced][.N].vtt, built
+// only from the language tag and a fixed vocabulary, never from a track's
+// title (which tends to carry release-group junk). The client turns these
+// suffixes into labels like "English (SDH)".
 function extractEmbeddedSubtitles(filePath: string, result: ProbeResult, dryRun: boolean): void {
   const dir = path.dirname(filePath);
   const stem = path.basename(filePath, path.extname(filePath));
-  const subs = result.streams.filter((s) => s.codec_type === "subtitle");
+  const subStreams = result.streams.filter((s) => s.codec_type === "subtitle");
 
-  for (let i = 0; i < subs.length; i++) {
-    const lang = subs[i].tags?.language;
-    const suffix =
-      lang && lang !== "und" && lang !== "unk" ? lang : `sub${i}`;
-    const outPath = path.join(dir, `${stem}.${suffix}.vtt`);
-
-    if (fs.existsSync(outPath)) {
-      console.log(`    subtitle: ${path.basename(outPath)} already exists, skipping`);
-      continue;
+  const tracks: SubtitleTrack[] = [];
+  subStreams.forEach((s, i) => {
+    if (IMAGE_SUBTITLE_CODECS.has(s.codec_name)) {
+      console.log(`    subtitle: stream ${i} is image-based (${s.codec_name}), can't convert to text, skipping`);
+      return;
     }
+    const lang = s.tags?.language;
+    tracks.push({
+      streamIndex: i,
+      codec: s.codec_name,
+      lang: lang && lang !== "unk" ? lang : "und",
+      stream: s,
+    });
+  });
 
-    if (dryRun) {
-      console.log(`    subtitle: would extract stream ${i} (${subs[i].codec_name}) → ${path.basename(outPath)}`);
-      continue;
-    }
-
-    console.log(`    subtitle: extracting stream ${i} (${subs[i].codec_name}) → ${path.basename(outPath)}`);
-    const r = spawnSync(
-      "ffmpeg",
-      ["-i", filePath, "-map", `0:s:${i}`, "-c:s", "webvtt", "-y", outPath],
-      { stdio: "pipe" },
-    );
-
-    if (r.status !== 0) {
-      console.log(`    subtitle: extraction failed, skipping`);
-      try { fs.unlinkSync(outPath); } catch { /* may not exist */ }
+  // Skip a language entirely once it has at least as many subtitle files
+  // beside the video as it has tracks, i.e. it was already extracted.
+  const existing = fs.readdirSync(dir).filter((f) => f.startsWith(stem + ".") && f.endsWith(".vtt"));
+  const byLang = new Map<string, SubtitleTrack[]>();
+  for (const t of tracks) byLang.set(t.lang, [...(byLang.get(t.lang) ?? []), t]);
+  const existingFor = (lang: string) =>
+    existing.filter((f) => sameLanguage(f.slice(stem.length + 1).split(".")[0], lang));
+  const pending: SubtitleTrack[] = [];
+  for (const [lang, group] of byLang) {
+    if (existingFor(lang).length >= group.length) {
+      console.log(`    subtitle: ${lang} already extracted, skipping`);
+    } else {
+      pending.push(...group);
     }
   }
+  if (pending.length === 0) return;
+
+  // Extraction only reads the video, so it runs in dry-run mode too: the
+  // track contents are needed to decide the names.
+  readSubtitleTracks(filePath, pending);
+  const readable = pending.filter((t) => {
+    if (t.vtt === undefined) console.log(`    subtitle: stream ${t.streamIndex} (${t.codec}) could not be converted, skipping`);
+    return t.vtt !== undefined;
+  });
+
+  for (const lang of byLang.keys()) {
+    const langTracks = readable.filter((t) => t.lang === lang);
+    classifySubtitleTracks(langTracks);
+    const used = new Set<string>();
+    const outNames = langTracks.map((t) => {
+      const base = t.kind === "plain" ? lang : `${lang}.${t.kind}`;
+      let suffix = base;
+      for (let n = 2; used.has(suffix); n++) suffix = `${base}.${n}`;
+      used.add(suffix);
+      return `${stem}.${suffix}.vtt`;
+    });
+
+    // Older versions of this script wrote only the first track of each
+    // language, always as <stem>.<lang>.vtt, so that file may really hold
+    // e.g. the SDH track. If an existing file's content matches a track with
+    // a different name, rename it rather than writing a duplicate.
+    const renamed = new Set<string>(); // old names now free to reuse
+    const renamedTo = new Set<string>();
+    langTracks.forEach((t, i) => {
+      if (fs.existsSync(path.join(dir, outNames[i]))) return;
+      const match = existingFor(lang).find(
+        (f) => !renamed.has(f) && sameSubtitles(fs.readFileSync(path.join(dir, f), "utf8"), t.vtt!),
+      );
+      if (!match || match === outNames[i]) return;
+      console.log(`    subtitle: ${dryRun ? "would rename" : "renaming"} ${match} → ${outNames[i]} (it holds the ${t.kind} track)`);
+      if (!dryRun) fs.renameSync(path.join(dir, match), path.join(dir, outNames[i]));
+      renamed.add(match);
+      renamedTo.add(outNames[i]);
+    });
+
+    for (let i = 0; i < langTracks.length; i++) {
+      const t = langTracks[i];
+      const outName = outNames[i];
+      const outPath = path.join(dir, outName);
+      if (renamedTo.has(outName)) continue;
+      if (fs.existsSync(outPath) && !(dryRun && renamed.has(outName))) {
+        console.log(`    subtitle: ${outName} already exists, skipping`);
+        continue;
+      }
+      if (dryRun) {
+        console.log(`    subtitle: would extract stream ${t.streamIndex} (${t.codec}, ${t.kind}) → ${outName}`);
+        continue;
+      }
+      console.log(`    subtitle: extracting stream ${t.streamIndex} (${t.codec}, ${t.kind}) → ${outName}`);
+      fs.writeFileSync(outPath, t.vtt!);
+    }
+  }
+}
+
+// Converts the given tracks to WebVTT in memory (t.vtt), in a single ffmpeg
+// pass over the video where possible; falls back to one track at a time if
+// the combined pass fails, so one bad track doesn't lose the others.
+function readSubtitleTracks(filePath: string, tracks: SubtitleTrack[]): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "subs-"));
+  const tmpPath = (t: SubtitleTrack) => path.join(tmpDir, `${t.streamIndex}.vtt`);
+  const run = (ts: SubtitleTrack[]) =>
+    spawnSync(
+      "ffmpeg",
+      ["-v", "error", "-i", filePath, ...ts.flatMap((t) => ["-map", `0:s:${t.streamIndex}`, "-c:s", "webvtt", "-y", tmpPath(t)])],
+      { stdio: "pipe" },
+    ).status === 0;
+
+  try {
+    const ok = run(tracks);
+    for (const t of tracks) {
+      if (ok || run([t])) t.vtt = fs.readFileSync(tmpPath(t), "utf8");
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// Compares language codes by meaning, so "en" and "eng" match, as do
+// the older 3-letter forms like "fre"/"fr".
+function sameLanguage(a: string, b: string): boolean {
+  const canonical = (code: string) => {
+    try {
+      return Intl.getCanonicalLocales(code)[0].toLowerCase();
+    } catch {
+      return code.toLowerCase(); // not a valid language tag
+    }
+  };
+  return canonical(a) === canonical(b);
+}
+
+function sameSubtitles(a: string, b: string): boolean {
+  const normalize = (s: string) => s.replace(/\r\n/g, "\n").trim();
+  return normalize(a) === normalize(b);
+}
+
+// The text lines of each cue in a WebVTT file.
+function cueLines(vtt: string): string[][] {
+  return vtt
+    .split(/\r?\n\r?\n/)
+    .filter((block) => block.includes("-->"))
+    .map((block) => block.split(/\r?\n/).filter((line) => !line.includes("-->")));
+}
+
+// SDH subtitles describe non-dialogue sound, e.g. "[door slams]" or
+// "(sighs)", at the start of a line. Plain dialogue subtitles don't:
+// measured on this library, plain tracks have 0% of cues like this, SDH
+// tracks 5-45%. Non-English tracks sometimes put translated on-screen text
+// in parentheses, "(Queens, Earth-65)", which reached 3.4%, hence the 4%
+// threshold. (Speaker labels like "CAROL:" aren't counted; some plain
+// tracks use them too.)
+const SOUND_CUE_LINE = /^-?\s*(<[^>]+>)*\s*[[(]/;
+const SDH_MIN_SOUND_CUE_RATIO = 0.04;
+// Forced subtitles only cover foreign-language lines and on-screen text, so
+// they're far shorter than a full track in the same language.
+const FORCED_MAX_CUE_RATIO = 0.25;
+
+// Sets t.kind for tracks sharing one language. Explicit metadata (the
+// forced / hearing-impaired flags, or those words in the track title) wins;
+// otherwise the kind is inferred from the subtitle text.
+function classifySubtitleTracks(tracks: SubtitleTrack[]): void {
+  const cues = tracks.map((t) => cueLines(t.vtt!));
+  const maxCues = Math.max(0, ...cues.map((c) => c.length));
+
+  tracks.forEach((t, i) => {
+    const title = t.stream.tags?.title ?? "";
+    const flags = t.stream.disposition ?? {};
+    const soundCues = cues[i].filter((lines) => lines.some((line) => SOUND_CUE_LINE.test(line))).length;
+
+    if (flags.forced || /forced/i.test(title)) {
+      t.kind = "forced";
+    } else if (flags.hearing_impaired || /\bsdh\b|\bcc\b|hearing/i.test(title)) {
+      t.kind = "sdh";
+    } else if (tracks.length > 1 && cues[i].length < maxCues * FORCED_MAX_CUE_RATIO) {
+      t.kind = "forced";
+    } else if (cues[i].length > 0 && soundCues / cues[i].length >= SDH_MIN_SOUND_CUE_RATIO) {
+      t.kind = "sdh";
+    } else {
+      t.kind = "plain";
+    }
+  });
 }
 
 function convertExternalSubtitle(filePath: string, dryRun: boolean): void {
