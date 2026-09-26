@@ -70,8 +70,14 @@ main {
   color: var(--muted);
 }
 
-.sort-select {
+.library-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sort-select {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);

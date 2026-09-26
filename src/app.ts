@@ -280,6 +280,50 @@ function updateNav(): void {
   const breadcrumb = document.getElementById("breadcrumb")!;
   backBtn.hidden = navStack.length === 0;
   breadcrumb.textContent = navStack.map((d) => d.name).join(" › ");
+
+  const randomBtn = document.getElementById("random-btn") as HTMLButtonElement;
+  const dir = currentDir();
+  randomBtn.hidden = !dir || dir.children.length === 0;
+  randomBtn.title = `Play something random from ${navStack.length > 0 ? displayName(dir!.name) : "the whole library"}`;
+}
+
+// ── Random pick ───────────────────────────────────────────────────────────────
+
+function randomItem<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+// "Season 00" is the standard (TMDB/TVDB/Plex) folder for a show's specials:
+// extras, featurettes, one-offs.
+function isSpecialsFolder(entry: Entry): boolean {
+  return entry.type === "dir" && /^season 0+$/i.test(entry.name);
+}
+
+// All videos under entry, optionally leaving out any specials folders below it.
+function collectFiles(entry: Entry, includeSpecials: boolean): FileEntry[] {
+  if (entry.type === "file") return [entry];
+  return entry.children
+    .filter((c) => includeSpecials || !isSpecialsFolder(c))
+    .flatMap((c) => collectFiles(c, includeSpecials));
+}
+
+// Picks a random video from anywhere under dir. Above title level (the root
+// and the category folders, whose children are the poster-grid titles) each
+// child is equally likely, so every movie or show gets an equal chance however
+// many episodes it has; within a title every episode is equally likely.
+// Specials are left out unless dir is itself a specials folder, or holds
+// nothing else. The server prunes empty folders, so every child leads to at
+// least one video.
+function pickRandomVideo(dir: DirEntry): FileEntry | null {
+  const depth = dir.path ? dir.path.split("/").length : 0;
+  if (depth >= 2) {
+    let files = collectFiles(dir, false);
+    if (files.length === 0) files = collectFiles(dir, true);
+    return files.length > 0 ? randomItem(files) : null;
+  }
+  if (dir.children.length === 0) return null;
+  const choice = randomItem(dir.children);
+  return choice.type === "file" ? choice : pickRandomVideo(choice);
 }
 
 // ── Library rendering ─────────────────────────────────────────────────────────
@@ -535,6 +579,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("back-btn")!.addEventListener("click", () => showLibrary());
   document.getElementById("library-back")!.addEventListener("click", () => navigateBack());
   window.addEventListener("popstate", () => routeFromLocation());
+
+  document.getElementById("random-btn")!.addEventListener("click", () => {
+    const dir = currentDir();
+    const file = dir && pickRandomVideo(dir);
+    if (file) openPlayer(file);
+  });
 
   const sortSelect = document.getElementById("sort-select") as HTMLSelectElement;
   sortSelect.value = sortMode;
