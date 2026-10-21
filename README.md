@@ -40,7 +40,7 @@ Open the **Network** URL printed in the terminal on any device on the same netwo
 
 ## Library structure
 
-The server serves `.mp4` and `.webm` files. Suggested layout:
+The server serves `.mp4`, `.webm` and `.mkv` files. MKV only plays in Chromium-based browsers (Chrome, Edge); other browsers show a warning, so prefer MP4. Suggested layout:
 
 ```
 media/
@@ -94,7 +94,7 @@ npm run transcode -- /path/to/library --dry-run   # preview only, changes nothin
 npm run transcode -- /path/to/library              # actually convert
 ```
 
-Requires `ffmpeg` and `ffprobe` (`brew install ffmpeg` on macOS). Files that are already H.264 + AAC in an MP4 container are skipped; others are remuxed or re-encoded as needed.
+Requires `ffmpeg` and `ffprobe` (`brew install ffmpeg` on macOS). Files that are already H.264 + AAC in an MP4 or MKV container are skipped (MKVs stay MKV); others are remuxed or re-encoded as needed.
 
 ## Scripts
 
