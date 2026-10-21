@@ -98,19 +98,23 @@ function extractEmbeddedSubtitles(filePath: string, result: ProbeResult, dryRun:
   const subStreams = result.streams.filter((s) => s.codec_type === "subtitle");
 
   const tracks: SubtitleTrack[] = [];
+  let otherLanguages = 0;
   subStreams.forEach((s, i) => {
+    const tag = s.tags?.language;
+    const lang = tag && tag !== "unk" ? tag : "und";
+    // Only English is kept. Untagged tracks are kept too: they're often a
+    // file's only subtitles, and usually English.
+    if (lang !== "und" && !isEnglish(lang)) {
+      otherLanguages++;
+      return;
+    }
     if (IMAGE_SUBTITLE_CODECS.has(s.codec_name)) {
       console.log(`    subtitle: stream ${i} is image-based (${s.codec_name}), can't convert to text, skipping`);
       return;
     }
-    const lang = s.tags?.language;
-    tracks.push({
-      streamIndex: i,
-      codec: s.codec_name,
-      lang: lang && lang !== "unk" ? lang : "und",
-      stream: s,
-    });
+    tracks.push({ streamIndex: i, codec: s.codec_name, lang, stream: s });
   });
+  if (otherLanguages > 0) console.log(`    subtitle: ignoring ${otherLanguages} non-English track(s)`);
 
   // Skip a language entirely once it has at least as many subtitle files
   // beside the video as it has tracks, i.e. it was already extracted.
@@ -220,6 +224,11 @@ function sameLanguage(a: string, b: string): boolean {
     }
   };
   return canonical(a) === canonical(b);
+}
+
+// True for any English tag: "en", "eng", or a regional one like "en-GB".
+function isEnglish(lang: string): boolean {
+  return sameLanguage(lang.split("-")[0], "en");
 }
 
 function sameSubtitles(a: string, b: string): boolean {
