@@ -28,7 +28,7 @@ if (!LIBRARY_PATH) {
   console.error(
     "\nError: LIBRARY_PATH is not set.\n" +
       "  Set it in a .env file:  LIBRARY_PATH=/path/to/your/media\n" +
-      "  Or inline:              LIBRARY_PATH=/path/to/media npm start\n",
+      "  Or inline:              LIBRARY_PATH=/path/to/media pnpm start\n",
   );
   process.exit(1);
 }

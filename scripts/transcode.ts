@@ -388,8 +388,8 @@ function main(): void {
     console.error(
       "\nError: LIBRARY_PATH is not set.\n" +
         "  Set it in a .env file:  LIBRARY_PATH=/path/to/your/media\n" +
-        "  Or inline:              LIBRARY_PATH=/path/to/media npm run transcode\n" +
-        "  Or as an argument:      npm run transcode -- /path/to/library\n" +
+        "  Or inline:              LIBRARY_PATH=/path/to/media pnpm run transcode\n" +
+        "  Or as an argument:      pnpm run transcode -- /path/to/library\n" +
         "  Add --dry-run to preview actions without changing any files.\n",
     );
     process.exit(1);

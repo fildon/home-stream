@@ -4,7 +4,7 @@
   "scripts": {
     "transcode": "tsx scripts/transcode.ts",
     "build": "esbuild src/app.ts --bundle --outfile=public/app.js --format=iife --target=es2022",
-    "start": "npm run build && tsx server.ts",
+    "start": "pnpm run build && tsx server.ts",
     "dev": "tsx server.ts"
   },
   "dependencies": {
@@ -16,5 +16,6 @@
     "esbuild": "^0.27.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
-  }
+  },
+  "packageManager": "pnpm@10.4.1"
 }

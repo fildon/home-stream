@@ -18,7 +18,7 @@ A local-network media streaming server. Point it at a folder of videos and open 
 ## Setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 Create a `.env` file:
@@ -32,8 +32,8 @@ PORT=8080                         # optional — defaults to 8080
 ## Usage
 
 ```bash
-npm run dev     # start server (no build step)
-npm start       # build client bundle then start server
+pnpm run dev     # start server (no build step)
+pnpm start       # build client bundle then start server
 ```
 
 Open the **Network** URL printed in the terminal on any device on the same network.
@@ -90,8 +90,8 @@ Movies/
 Converts your library to browser-compatible H.264/AAC MP4 in-place, and extracts or converts embedded/external subtitles to WebVTT.
 
 ```bash
-npm run transcode -- /path/to/library --dry-run   # preview only, changes nothing
-npm run transcode -- /path/to/library              # actually convert
+pnpm run transcode -- /path/to/library --dry-run   # preview only, changes nothing
+pnpm run transcode -- /path/to/library              # actually convert
 ```
 
 Requires `ffmpeg` and `ffprobe` (`brew install ffmpeg` on macOS). Files that are already H.264 + AAC in an MP4 or MKV container are skipped (MKVs stay MKV); others are remuxed or re-encoded as needed.
@@ -100,7 +100,7 @@ Requires `ffmpeg` and `ffprobe` (`brew install ffmpeg` on macOS). Files that are
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start the server with `tsx` |
-| `npm start` | Build the client bundle then start the server |
-| `npm run build` | Build `src/app.ts` → `public/app.js` only |
-| `npm run transcode -- <path>` | Transcode a library directory to web-compatible MP4 |
+| `pnpm run dev` | Start the server with `tsx` |
+| `pnpm start` | Build the client bundle then start the server |
+| `pnpm run build` | Build `src/app.ts` → `public/app.js` only |
+| `pnpm run transcode -- <path>` | Transcode a library directory to web-compatible MP4 |
